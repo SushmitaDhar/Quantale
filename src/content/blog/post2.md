@@ -1,16 +1,119 @@
 ---
-title: "Demo Post 2"
-description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-pubDate: "Sep 11 2022"
+title: "⚡ DAX Performance Optimization"
+description: "Writing Measures That Don't Kill Your Report: CALCULATE, FILTER, iterators, and the mistakes slowing you down."
+pubDate: "Jun 03 2026"
 heroImage: "/post_img.webp"
+tags: ["DAX", "Power BI", "Performance", "Data Modeling", "Data Analytics", "Data Visualization"]
 ---
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Vitae ultricies leo integer malesuada nunc vel risus commodo viverra. Adipiscing enim eu turpis egestas pretium. Euismod elementum nisi quis eleifend quam adipiscing. In hac habitasse platea dictumst vestibulum. Sagittis purus sit amet volutpat. Netus et malesuada fames ac turpis egestas. Eget magna fermentum iaculis eu non diam phasellus vestibulum lorem. Varius sit amet mattis vulputate enim. Habitasse platea dictumst quisque sagittis. Integer quis auctor elit sed vulputate mi. Dictumst quisque sagittis purus sit amet.
+**Introduction**
+You have chosen the right storage mode, built a clean data model, and your report looks stunning. Then your manager clicks a slicer and waits. And waits. The spinning circle of doom appears. The culprit? Almost always a poorly written DAX measure.
 
-Morbi tristique senectus et netus. Id semper risus in hendrerit gravida rutrum quisque non tellus. Habitasse platea dictumst quisque sagittis purus sit amet. Tellus molestie nunc non blandit massa. Cursus vitae congue mauris rhoncus. Accumsan tortor posuere ac ut. Fringilla urna porttitor rhoncus dolor. Elit ullamcorper dignissim cras tincidunt lobortis. In cursus turpis massa tincidunt dui ut ornare lectus. Integer feugiat scelerisque varius morbi enim nunc. Bibendum neque egestas congue quisque egestas diam. Cras ornare arcu dui vivamus arcu felis bibendum. Dignissim suspendisse in est ante in nibh mauris. Sed tempus urna et pharetra pharetra massa massa ultricies mi.
+DAX is deceptively simple to start with, but incredibly easy to write badly at scale. In this post, we will break down exactly how Power BI evaluates DAX, the most common mistakes that destroy performance, and the patterns you should use instead.
 
-Mollis nunc sed id semper risus in. Convallis a cras semper auctor neque. Diam sit amet nisl suscipit. Lacus viverra vitae congue eu consequat ac felis donec. Egestas integer eget aliquet nibh praesent tristique magna sit amet. Eget magna fermentum iaculis eu non diam. In vitae turpis massa sed elementum. Tristique et egestas quis ipsum suspendisse ultrices. Eget lorem dolor sed viverra ipsum. Vel turpis nunc eget lorem dolor sed viverra. Posuere ac ut consequat semper viverra nam. Laoreet suspendisse interdum consectetur libero id faucibus. Diam phasellus vestibulum lorem sed risus ultricies tristique. Rhoncus dolor purus non enim praesent elementum facilisis. Ultrices tincidunt arcu non sodales neque. Tempus egestas sed sed risus pretium quam vulputate. Viverra suspendisse potenti nullam ac tortor vitae purus faucibus ornare. Fringilla urna porttitor rhoncus dolor purus non. Amet dictum sit amet justo donec enim.
+### How Power BI Evaluates DAX: The Two Engines
 
-Mattis ullamcorper velit sed ullamcorper morbi tincidunt. Tortor posuere ac ut consequat semper viverra. Tellus mauris a diam maecenas sed enim ut sem viverra. Venenatis urna cursus eget nunc scelerisque viverra mauris in. Arcu ac tortor dignissim convallis aenean et tortor at. Curabitur gravida arcu ac tortor dignissim convallis aenean et tortor. Egestas tellus rutrum tellus pellentesque eu. Fusce ut placerat orci nulla pellentesque dignissim enim sit amet. Ut enim blandit volutpat maecenas volutpat blandit aliquam etiam. Id donec ultrices tincidunt arcu. Id cursus metus aliquam eleifend mi.
+Before fixing performance, you need to understand what happens when a measure runs. Power BI uses two internal engines to evaluate every DAX query:
 
-Tempus quam pellentesque nec nam aliquam sem. Risus at ultrices mi tempus imperdiet. Id porta nibh venenatis cras sed felis eget velit. Ipsum a arcu cursus vitae. Facilisis magna etiam tempor orci eu lobortis elementum. Tincidunt dui ut ornare lectus sit. Quisque non tellus orci ac. Blandit libero volutpat sed cras. Nec tincidunt praesent semper feugiat nibh sed pulvinar proin gravida. Egestas integer eget aliquet nibh praesent tristique magna.
+🟢 **The Storage Engine (SE)**
+This is the fast engine. It reads raw data from the VertiPaq in-memory store in highly compressed, parallelized scans. You want as much work done here as possible.
+
+🔴 **The Formula Engine (FE)**
+This is the slow engine. It handles complex logic, row-by-row iterations, and anything the Storage Engine cannot resolve on its own. It is single-threaded and cannot be parallelized.
+
+**The golden rule:** Write DAX that keeps work in the Storage Engine and minimizes Formula Engine load.
+
+### The Most Dangerous Pattern: Row-by-Row Iteration at Scale
+
+The most common performance killer is using iterator functions (SUMX, AVERAGEX, MAXX) over large, uncondensed tables.
+
+🐢 **Slow Pattern**
+```dax
+Total Revenue = 
+SUMX(
+    Sales,
+    Sales[Quantity] * Sales[Unit Price]
+)
+```
+If your Sales table has 50 million rows, this measure asks the Formula Engine to loop through every single row and multiply two columns. This is extremely expensive.
+
+🚀 **Fast Pattern**
+```dax
+Total Revenue = 
+SUMX(
+    Sales,
+    Sales[Line Total]
+)
+```
+Pre-calculate `Line Total` as a calculated column during data load. The iterator now reads a single pre-computed column, drastically reducing Formula Engine work. Push complexity into Power Query or your data warehouse, not into runtime DAX.
+
+### CALCULATE and FILTER: The Most Misused Function in DAX
+
+CALCULATE is the most powerful function in DAX. It is also the most abused.
+
+🐢 **Slow Pattern**
+```dax
+High Value Sales = 
+CALCULATE(
+    [Total Revenue],
+    FILTER(Sales, Sales[Unit Price] > 100)
+)
+```
+Using `FILTER` over an entire table forces the Formula Engine to scan every row of the Sales table to find matches.
+
+🚀 **Fast Pattern**
+```dax
+High Value Sales = 
+CALCULATE(
+    [Total Revenue],
+    Sales[Unit Price] > 100
+)
+```
+Passing a simple boolean condition directly to CALCULATE allows the Storage Engine to handle the filter natively. This is dramatically faster on large tables. Reserve `FILTER` only for when you genuinely need to iterate over a table expression.
+
+### Variables: The Free Performance Win
+
+Many developers write measures that evaluate the same expression multiple times. DAX variables solve this completely and make your code readable at the same time.
+
+🐢 **Slow Pattern**
+```dax
+Revenue vs Target = 
+DIVIDE([Total Revenue] - [Total Target], [Total Target])
+```
+Here `[Total Target]` is evaluated twice.
+
+🚀 **Fast Pattern**
+```dax
+Revenue vs Target = 
+VAR TotalRev = [Total Revenue]
+VAR TotalTarget = [Total Target]
+RETURN
+    DIVIDE(TotalRev - TotalTarget, TotalTarget)
+```
+Variables are evaluated once and cached for the duration of the measure. This is a free performance improvement with zero downside.
+
+### The DISTINCTCOUNT Trap
+
+`DISTINCTCOUNT` is one of the most expensive operations in DAX because it requires the engine to identify every unique value in a column.
+
+🐢 **Expensive usage**
+```dax
+Unique Customers = DISTINCTCOUNT(Sales[Customer ID])
+```
+On 50 million rows, this is a heavy operation every time a slicer changes.
+
+🚀 **Better approach**
+If you are using this measure frequently across many visuals, consider creating a dedicated **Customers dimension table** with one row per customer and using `COUNTROWS` against that instead. This shifts the work from a runtime scan to a pre-aggregated table read.
+
+### Quick Reference: DAX Performance Cheat Sheet
+
+| Pattern | Avoid | Use Instead |
+|---|---|---|
+| Iterating large tables | `SUMX(Sales, ...)` on raw tables | Pre-calculate columns in Power Query |
+| FILTER in CALCULATE | `FILTER(Table, condition)` | Direct boolean filter in CALCULATE |
+| Repeated expressions | Calling same measure twice | Use `VAR` to cache the result |
+| DISTINCTCOUNT on facts | On 50M row tables | Build a dimension table, use COUNTROWS |
+
+### Final Summary: Think Like the Engine
+
+Writing fast DAX is not about memorizing syntax. It is about understanding which engine handles your logic. Keep filters simple so the Storage Engine can work at full speed. Pre-calculate complexity during data load rather than at query time. Use variables liberally. And always test with large datasets before declaring a measure production-ready.
