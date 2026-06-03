@@ -1,56 +1,73 @@
 ---
-title: "Demo Post 1"
-description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-pubDate: "Sep 10 2022"
+title: "🔄 Power BI Incremental Refresh"
+description: "Handling Large Datasets Without Breaking Your Gateway: How incremental refresh solves the 'too much data' problem without switching to DirectQuery."
+pubDate: "Jun 03 2026"
 heroImage: "/post_img.webp"
-tags: ["tokio"]
+tags: ["Incremental Refresh", "Power BI", "Large Datasets", "Performance", "Data Analytics", "Data Visualization"]
 ---
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-incididunt ut labore et dolore magna aliqua. Vitae ultricies leo integer
-malesuada nunc vel risus commodo viverra. Adipiscing enim eu turpis egestas
-pretium. Euismod elementum nisi quis eleifend quam adipiscing. In hac habitasse
-platea dictumst vestibulum. Sagittis purus sit amet volutpat. Netus et malesuada
-fames ac turpis egestas. Eget magna fermentum iaculis eu non diam phasellus
-vestibulum lorem. Varius sit amet mattis vulputate enim. Habitasse platea
-dictumst quisque sagittis. Integer quis auctor elit sed vulputate mi. Dictumst
-quisque sagittis purus sit amet.
+**Introduction**
+In our last post, we established that Import Mode is the default powerhouse for Power BI — fast, flexible, and fully featured. But what happens when your data grows beyond what a full refresh can handle? Refreshing 200 million rows of sales history every night is slow, expensive, and fragile. One gateway timeout and your entire dashboard goes stale.
 
-Morbi tristique senectus et netus. Id semper risus in hendrerit gravida rutrum
-quisque non tellus. Habitasse platea dictumst quisque sagittis purus sit amet.
-Tellus molestie nunc non blandit massa. Cursus vitae congue mauris rhoncus.
-Accumsan tortor posuere ac ut. Fringilla urna porttitor rhoncus dolor. Elit
-ullamcorper dignissim cras tincidunt lobortis. In cursus turpis massa tincidunt
-dui ut ornare lectus. Integer feugiat scelerisque varius morbi enim nunc.
-Bibendum neque egestas congue quisque egestas diam. Cras ornare arcu dui vivamus
-arcu felis bibendum. Dignissim suspendisse in est ante in nibh mauris. Sed
-tempus urna et pharetra pharetra massa massa ultricies mi.
+Incremental Refresh is Power BI's answer to this problem. Instead of reloading everything, it only processes the data that has actually changed. In this post, we will break down exactly how it works and how to configure it step by step.
 
-Mollis nunc sed id semper risus in. Convallis a cras semper auctor neque. Diam
-sit amet nisl suscipit. Lacus viverra vitae congue eu consequat ac felis donec.
-Egestas integer eget aliquet nibh praesent tristique magna sit amet. Eget magna
-fermentum iaculis eu non diam. In vitae turpis massa sed elementum. Tristique et
-egestas quis ipsum suspendisse ultrices. Eget lorem dolor sed viverra ipsum. Vel
-turpis nunc eget lorem dolor sed viverra. Posuere ac ut consequat semper viverra
-nam. Laoreet suspendisse interdum consectetur libero id faucibus. Diam phasellus
-vestibulum lorem sed risus ultricies tristique. Rhoncus dolor purus non enim
-praesent elementum facilisis. Ultrices tincidunt arcu non sodales neque. Tempus
-egestas sed sed risus pretium quam vulputate. Viverra suspendisse potenti nullam
-ac tortor vitae purus faucibus ornare. Fringilla urna porttitor rhoncus dolor
-purus non. Amet dictum sit amet justo donec enim.
+### What Is Incremental Refresh?
 
-Mattis ullamcorper velit sed ullamcorper morbi tincidunt. Tortor posuere ac ut
-consequat semper viverra. Tellus mauris a diam maecenas sed enim ut sem viverra.
-Venenatis urna cursus eget nunc scelerisque viverra mauris in. Arcu ac tortor
-dignissim convallis aenean et tortor at. Curabitur gravida arcu ac tortor
-dignissim convallis aenean et tortor. Egestas tellus rutrum tellus pellentesque
-eu. Fusce ut placerat orci nulla pellentesque dignissim enim sit amet. Ut enim
-blandit volutpat maecenas volutpat blandit aliquam etiam. Id donec ultrices
-tincidunt arcu. Id cursus metus aliquam eleifend mi.
+Incremental Refresh splits your dataset into two invisible partitions:
 
-Tempus quam pellentesque nec nam aliquam sem. Risus at ultrices mi tempus
-imperdiet. Id porta nibh venenatis cras sed felis eget velit. Ipsum a arcu
-cursus vitae. Facilisis magna etiam tempor orci eu lobortis elementum. Tincidunt
-dui ut ornare lectus sit. Quisque non tellus orci ac. Blandit libero volutpat
-sed cras. Nec tincidunt praesent semper feugiat nibh sed pulvinar proin gravida.
-Egestas integer eget aliquet nibh praesent tristique magna.
+- **Historical partition:** A large, frozen chunk of old data that is never touched after the initial load (e.g., everything older than 3 months).
+- **Refresh partition:** A small, rolling window of recent data that gets refreshed on every scheduled run (e.g., the last 3 days).
+
+Instead of reloading 200 million rows nightly, Power BI only reloads the 50,000 rows from the last 3 days. The result is dramatically faster refreshes, lower gateway load, and a much more reliable pipeline.
+
+### The Two Magic Parameters
+
+Incremental Refresh is powered by exactly two reserved Power Query parameters that Power BI recognises by name. You must name them precisely:
+
+| Parameter Name | Type | Purpose |
+|---|---|---|
+| `RangeStart` | Date/Time | The start of the refresh window |
+| `RangeEnd` | Date/Time | The end of the refresh window |
+
+Power BI uses these parameters to automatically partition your data. You define them — Power BI manages them at refresh time.
+
+### How to Configure Incremental Refresh: Step by Step
+
+#### Step 1: Create the Parameters in Power Query
+
+1. Open **Power Query Editor** (Home → Transform Data)
+2. Go to **Manage Parameters → New Parameter**
+3. Create the first parameter:
+   - **Name:** `RangeStart`
+   - **Type:** `Date/Time`
+   - **Current Value:** `1/1/2024 12:00:00 AM`
+4. Create the second parameter:
+   - **Name:** `RangeEnd`
+   - **Type:** `Date/Time`
+   - **Current Value:** `6/3/2026 12:00:00 AM`
+
+#### Step 2: Filter Your Date Column Using the Parameters
+
+1. In Power Query, select your main fact table (e.g., `Sales`)
+2. Click the dropdown on your date column (e.g., `OrderDate`)
+3. Choose **Date/Time Filters → Custom Filter**
+4. Set the filter: `OrderDate` is after or equal to `RangeStart` AND before `RangeEnd`
+5. Click **OK** and close Power Query
+
+#### Step 3: Define the Incremental Refresh Policy
+
+1. In the **Data** or **Model** view, right-click your fact table
+2. Select **Incremental Refresh**
+3. Toggle **Incremental Refresh** on
+4. Configure the two windows:
+   - **Archive data starting:** `3 Years`
+   - **Refresh data in the last:** `3 Days`
+5. Click **Apply**
+
+#### Step 4: Publish to Power BI Service
+
+Incremental Refresh policies only activate after you publish to the Power BI Service. The partitioning and partition management happen in the cloud, not in Desktop.
+
+### Final Summary: When to Reach for Incremental Refresh
+
+Incremental Refresh sits in the sweet spot between full Import Mode and DirectQuery. Use it when your data is too large for a nightly full refresh but does not require true real-time updates. It gives you the speed of Import Mode with the scalability to handle years of historical data without ever touching a row that has not changed.
