@@ -1,5 +1,5 @@
-export const SITE_TITLE = 'Sushmita Dhar | Data Storyteller';
-export const SITE_DESCRIPTION = 'Plug-in your data and create the story';
+export const SITE_TITLE = 'Quantale';
+export const SITE_DESCRIPTION = 'Every number tells a story. Unlock it with Quantale';
 export const GENERATE_SLUG_FROM_TITLE = true
 export const TRANSITION_API = true
 
